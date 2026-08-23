@@ -306,3 +306,20 @@ def polynomial_transformation_matrix(A, basis):
             T[row, col] += coeff
 
     return T
+
+class RotationalPolynomials(PolynomialFunctions):
+    # It's the same except operations with a negative det flip the rotation
+    def __init__(self, symtext, degree=2):
+        super().__init__(symtext, degree)
+
+    def get_fxn_map(self):
+        nfxn = len(self.exponents)
+        fxn_map = np.zeros((len(self.symtext), nfxn, nfxn))
+        for sidx, symel in enumerate(self.symtext.symels):
+            A = np.array(symel.rrep, dtype=float)
+            T = polynomial_transformation_matrix(A, self.exponents)
+            fxn_map[sidx, :, :] = T.T * np.linalg.det(T)
+        return fxn_map
+
+    def salc_to_string(self, salc):
+        return "R(" + super().salc_to_string(salc) + ")"
