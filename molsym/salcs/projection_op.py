@@ -84,8 +84,9 @@ def ProjectionOp(symtext, fxn_set, project_Eckart=True):
     orthogonalize = False
     #orthogonalize = True
     for ir, irrep in enumerate(symtext.irreps):
+        #print(f"HERE: {irrep}")
         if symtext.pg.is_linear:
-            irrmat = None
+            irrmat = irrep
         else:
             irrmat = symtext.irrep_mats[irrep.symbol]
         for se_fxn_set in fxn_set.SE_fxns:

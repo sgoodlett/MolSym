@@ -36,12 +36,18 @@ class Symtext():
             self.order = len(symels)
         self.irreps = irreps
         self.irrep_mats = irrep_mats
-        self.get_character_table()
-        self.assign_dipole_irrep = self.dipole_components_to_irrep()
+        if self.pg.is_linear:
+            self.character_table = None
+        else:
+            self.get_character_table()
+            self.assign_dipole_irrep = self.dipole_components_to_irrep()
+
     def __len__(self):
         return len(self.symels)
 
     def __repr__(self):
+        if self.pg.is_linear:
+            return f"\n{self.mol}\nAtom map:\n{self.atom_map}"
         return f"\n{self.mol}\n{self.character_table}\n{self.symels}\nAtom map:\n{self.atom_map}\nMultiplication Table\n{self.mult_table}"
 
     @classmethod

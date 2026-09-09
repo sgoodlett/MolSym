@@ -181,7 +181,7 @@ def monomial_exponents(degree):
         for b in range(degree - a, -1, -1):
             c = degree - a - b
             basis.append((a, b, c))
-
+    #basis.reverse()
     return basis
 
 

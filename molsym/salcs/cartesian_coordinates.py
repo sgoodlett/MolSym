@@ -67,3 +67,66 @@ class CartesianCoordinates(FunctionSet):
             else:
                 salc[:,:,3*atom_idx+i] += irrmat[sidx, :, :] * xyz[i]
         return salc
+
+class LinearCartesian(FunctionSet):
+    def __init__(self, symtext):
+        fxn_list = [i for i in range(3*len(symtext.mol))]
+        super().__init__(symtext, fxn_list)
+
+    def get_fxn_map(self):
+        return 0
+
+    def get_symmetry_equiv_functions(self):
+        symm_equiv = []
+        if self.symtext.pg.family =="C":
+            for atom_i in range(len(self.symtext.mol)):
+                symm_equiv.append([3*atom_i, 3*atom_i+1]) # x,y
+                symm_equiv.append([3*atom_i+2]) # z
+        elif self.symtext.pg.family =="D":
+            done = []
+            for atom_i in range(len(self.symtext.mol)):
+                if atom_i not in done:
+                    atom_j = self.symtext.atom_map[atom_i,1]
+                    done.append(atom_i)
+                    done.append(atom_j)
+                    symm_equiv.append([3*atom_i, 3*atom_i+1, 3*atom_j, 3*atom_j+1]) # x,y
+                    symm_equiv.append([3*atom_i+2, 3*atom_j+2]) # z
+        return symm_equiv
+
+    def special_function(self, salc, coord, sidx, irrmat):
+        if self.symtext.pg.family == "C":
+            if irrmat.symbol not in ["Sigma^+","Pi"]:
+                return salc
+            if sidx == 1:
+                det = -1 # Reflections have a negative determinant
+            for se_fxns in self.SE_fxns:
+                if coord in se_fxns:
+                    coord_se_fxns = se_fxns
+                    break
+            if len(se_fxns) == 1 and irrmat.symbol != "Sigma^+":
+                return salc
+            elif len(se_fxns) == 2 and irrmat.symbol != "Pi":
+                return salc
+            for idx, f in enumerate(coord_se_fxns):
+                salc[idx,idx,f] += 1.0
+            return salc
+        elif self.symtext.pg.family == "D":
+            if irrmat.symbol not in ["Sigma_u^+","Pi_u"]:
+                return salc
+            #if sidx == 1:
+            #    det = -1 # Reflections have a negative determinant
+            for se_fxns in self.SE_fxns:
+                if coord in se_fxns:
+                    coord_se_fxns = se_fxns
+                    break
+            if len(se_fxns) == 2 and irrmat.symbol != "Sigma_u^+":
+                return salc
+            elif len(se_fxns) == 4 and irrmat.symbol != "Pi_u":
+                return salc
+            print(coord_se_fxns)
+            for idx, f in enumerate(coord_se_fxns):
+                salc[idx,idx,f] += 1.0
+            return salc
+        else:
+            raise ValueError("Bad point group.")
+
