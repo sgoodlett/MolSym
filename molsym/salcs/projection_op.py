@@ -2,7 +2,7 @@ import numpy as np
 import molsym
 #from .SymmetryEquivalentIC import *
 from .salc import SALC, SALCs
-from .cartesian_coordinates import CartesianCoordinates
+from .cartesian_coordinates import CartesianCoordinates, LinearCartesian
 
 def project_out_Eckart(eckart_conditions, new_vector):
     """
@@ -52,10 +52,16 @@ def eckart_conditions(symtext, translational=True, rotational=True):
         rz[3 * i + 2] = (tval0 * evec[2,1] - tval1 * evec[2,0]) * smass
     t = np.vstack((x,y,z))
     t /= np.linalg.norm(t, axis=1)[:,None]
-    r = np.vstack((rx,ry,rz))
+    if symtext.pg.is_linear:
+        dim = 5
+        r = np.vstack((ry,rz)) # rx is zero
+    else:
+        dim = 6
+        r = np.vstack((rx,ry,rz))
     r /= np.linalg.norm(r, axis=1)[:,None]
     both = np.vstack((t,r))
-    if not np.isclose(both @ both.T,np.eye(6)).all():
+    if not np.isclose(both @ both.T,np.eye(dim)).all():
+        print(both)
         raise Exception("Eckart conditions not orthogonal")
     if translational and rotational:
         return np.vstack((t,r))
@@ -99,7 +105,7 @@ def ProjectionOp(symtext, fxn_set, project_Eckart=True):
             salc *= irrep.d/symtext.order
             
             # Project out Eckart conditions when constructing SALCs of Cartesian displacements
-            if isinstance(fxn_set, CartesianCoordinates) and project_Eckart:
+            if (isinstance(fxn_set, CartesianCoordinates) or isinstance(fxn_set, LinearCartesian)) and project_Eckart:
                 orthogonalize = True
                 if project_Eckart is True:
                     eckart_cond = eckart_conditions(symtext)

@@ -87,10 +87,15 @@ class LinearCartesian(FunctionSet):
             for atom_i in range(len(self.symtext.mol)):
                 if atom_i not in done:
                     atom_j = self.symtext.atom_map[atom_i,1]
-                    done.append(atom_i)
-                    done.append(atom_j)
-                    symm_equiv.append([3*atom_i, 3*atom_i+1, 3*atom_j, 3*atom_j+1]) # x,y
-                    symm_equiv.append([3*atom_i+2, 3*atom_j+2]) # z
+                    if atom_i == atom_j:
+                        done.append(atom_i)
+                        symm_equiv.append([3*atom_i, 3*atom_i+1]) # x,y
+                        symm_equiv.append([3*atom_i+2]) # z
+                    else:
+                        done.append(atom_i)
+                        done.append(atom_j)
+                        symm_equiv.append([3*atom_i, 3*atom_i+1, 3*atom_j, 3*atom_j+1]) # x,y
+                        symm_equiv.append([3*atom_i+2, 3*atom_j+2]) # z
         return symm_equiv
 
     def special_function(self, salc, coord, sidx, irrmat):
@@ -111,21 +116,41 @@ class LinearCartesian(FunctionSet):
                 salc[idx,idx,f] += 1.0
             return salc
         elif self.symtext.pg.family == "D":
-            if irrmat.symbol not in ["Sigma_u^+","Pi_u"]:
+            if sidx > 1:
+                return salc # Treat sidx as E and i (0,1) and ignore all others
+            if irrmat.symbol not in ["Sigma_g^+", "Sigma_u^+","Pi_g", "Pi_u"]:
                 return salc
-            #if sidx == 1:
-            #    det = -1 # Reflections have a negative determinant
+            coord_atom_idx = coord // 3
             for se_fxns in self.SE_fxns:
                 if coord in se_fxns:
                     coord_se_fxns = se_fxns
                     break
-            if len(se_fxns) == 2 and irrmat.symbol != "Sigma_u^+":
-                return salc
-            elif len(se_fxns) == 4 and irrmat.symbol != "Pi_u":
-                return salc
-            print(coord_se_fxns)
-            for idx, f in enumerate(coord_se_fxns):
-                salc[idx,idx,f] += 1.0
+            central_atom = self.symtext.atom_map[coord_atom_idx,1] == coord_atom_idx
+            if central_atom:
+                if coord % 3 == 2 and irrmat.symbol == "Sigma_u^+":
+                    salc[0,0,coord] += 1
+                elif coord % 3 != 2 and irrmat.symbol == "Pi_u":
+                    salc[0,0,3*coord_atom_idx] += 1
+                    salc[1,1,3*coord_atom_idx+1] += 1
+            else:
+                other_atom = self.symtext.atom_map[coord_atom_idx, 1]
+                other_coord = (3*other_atom) + (coord%3)
+                if coord % 3 == 2 and irrmat.symbol == "Sigma_g^+":
+                    salc[0,0,coord] += 1
+                    salc[0,0,other_coord] += -1
+                elif coord % 3 == 2 and irrmat.symbol == "Sigma_u^+":
+                    salc[0,0,coord] += 1
+                    salc[0,0,other_coord] += 1
+                elif coord % 3 != 2 and irrmat.symbol == "Pi_g":
+                    salc[0,0,3*coord_atom_idx] += 1
+                    salc[0,0,3*other_atom] += -1
+                    salc[1,1,3*coord_atom_idx+1] += 1
+                    salc[1,1,3*other_atom+1] += -1
+                elif coord % 3 != 2 and irrmat.symbol == "Pi_u":
+                    salc[0,0,3*coord_atom_idx] += 1
+                    salc[0,0,3*other_atom] +=  1
+                    salc[1,1,3*coord_atom_idx+1] += 1
+                    salc[1,1,3*other_atom+1] +=  1
             return salc
         else:
             raise ValueError("Bad point group.")
