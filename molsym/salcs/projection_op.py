@@ -72,23 +72,22 @@ def eckart_conditions(symtext, translational=True, rotational=True):
     else:
         raise Exception("Calling this function is rather silly if you don't want either output...")
 
-def ProjectionOp(symtext, fxn_set, project_Eckart=True):
+def ProjectionOp(symtext, fxn_set, project_Eckart="both"):
     """
     Projection operator: projects the functions in fxn_set into SALCs.
 
     :type symtext: molsym.Symtext
     :type fxn_set: molsym.FunctionSet
     :param project_Eckart: Only applies when fxn_set is CartesianCoordinates.
-        True projects out both translations and rotations (default), False
+        'both' projects out both translations and rotations (default), None
         projects out neither, and 'translational' or 'rotational' projects
         out only that subset of the Eckart conditions.
-    :type project_Eckart: bool or str
+    :type project_Eckart: str or None
     :rtype: molsym.SALCs
     """
     numred = len(fxn_set)
     salcs = SALCs(symtext, fxn_set)
-    orthogonalize = False
-    #orthogonalize = True
+    orthogonalize = isinstance(fxn_set, CartesianCoordinates) or isinstance(fxn_set, LinearCartesian)
     for ir, irrep in enumerate(symtext.irreps):
         #print(f"HERE: {irrep}")
         if symtext.pg.is_linear:
@@ -103,10 +102,8 @@ def ProjectionOp(symtext, fxn_set, project_Eckart=True):
             for sidx in range(len(symtext)):
                 salc = fxn_set.special_function(salc, equivcoord, sidx, irrmat)
             salc *= irrep.d/symtext.order
-            
             # Project out Eckart conditions when constructing SALCs of Cartesian displacements
-            if (isinstance(fxn_set, CartesianCoordinates) or isinstance(fxn_set, LinearCartesian)) and project_Eckart:
-                orthogonalize = True
+            if (isinstance(fxn_set, CartesianCoordinates) or isinstance(fxn_set, LinearCartesian)) and project_Eckart is not None:
                 if project_Eckart is True:
                     eckart_cond = eckart_conditions(symtext)
                 elif project_Eckart == "translational":
@@ -114,7 +111,7 @@ def ProjectionOp(symtext, fxn_set, project_Eckart=True):
                 elif project_Eckart == "rotational":
                     eckart_cond = eckart_conditions(symtext, translational=False, rotational=True)
                 else:
-                    raise ValueError(f"Invalid value for project_Eckart: {project_Eckart!r}. Must be True, False, 'translational', or 'rotational'.")
+                    raise ValueError(f"Invalid value for project_Eckart: {project_Eckart!r}. Must be 'both', 'translational', 'rotational', or None.")
                 for i in range(irrep.d):
                     for j in range(irrep.d):
                         if not np.allclose(salc[i,j,:], np.zeros(salc[i,j,:].shape), atol=salcs.tol):
@@ -142,7 +139,7 @@ def ProjectionOp(symtext, fxn_set, project_Eckart=True):
     salcs.finish_building(orthogonalize=orthogonalize, remove_complexity=remove_complexity)
     return salcs
 
-def ProjectOnObject(symtext, fxn_set, manual_proj, project_Eckart=True):
+def ProjectOnObject(symtext, fxn_set, manual_proj):
     """
     Projection operator: projects the functions in fxn_set into SALCs.
 
@@ -152,8 +149,6 @@ def ProjectOnObject(symtext, fxn_set, manual_proj, project_Eckart=True):
     """
     numred = len(fxn_set)
     salcs = SALCs(symtext, fxn_set)
-    orthogonalize = False
-    #orthogonalize = True
     list_salc_ids = []
     index_for_irrep = []
     print("Projecting on user-specified SALCs to determine what irreps they belong to")
@@ -202,8 +197,7 @@ def ProjectOnObject(symtext, fxn_set, manual_proj, project_Eckart=True):
         remove_complexity = True
     else:
         remove_complexity = False
-    # Build convenience SALC data structures
-    salcs.finish_building(orthogonalize=orthogonalize, remove_complexity=remove_complexity)
+    salcs.finish_building(remove_complexity=remove_complexity)
 
     salcs.manual_proj_irreps = list_salc_ids
     salcs.manual_proj_indices = index_for_irrep
