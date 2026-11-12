@@ -189,15 +189,22 @@ def get_atom_mapping(mol, symels):
     :return: Atom by Symel array
     :rtype: NumPy array of shape (natom, nsymel)
     """
-    # symels after transformation
-    amap = np.zeros((mol.natoms, len(symels)), dtype=int)
-    for atom in range(mol.natoms):
-        for (s, symel) in enumerate(symels):
-            w = where_you_go(mol, atom, symel)
-            if w is not None:
-                amap[atom,s] = w
-            else:
-                raise Exception(f"Atom {atom} not mapped to another atom under symel {symel}")
+    R = np.array([s.rrep for s in symels], dtype=float).reshape(-1, 3, 3)  # (h,3,3), h may be 0 (Kh)
+    moved = np.einsum('sab,nb->sna', R, mol.coords)              # (h,N,3) image of every atom
+    # Same criterion as where_you_go's np.isclose(coords[i], image, atol=tol):
+    # |a - b| <= atol + 1e-5*|b|, with b the image coordinate
+    thresh = mol.tol + 1e-5 * np.abs(moved)
+    # An atom can only map onto an atom of the same mass
+    same_mass = np.asarray(mol.masses)[:, None] == np.asarray(mol.masses)[None, :]
+    amap = np.empty((mol.natoms, len(symels)), dtype=int)
+    for s, symel in enumerate(symels):
+        hit = (np.abs(mol.coords[None, :, :] - moved[s][:, None, :])
+               <= thresh[s][:, None, :]).all(axis=2) & same_mass  # (image atom, target atom)
+        found = hit.any(axis=1)
+        if not found.all():
+            atom = int(np.argmin(found))
+            raise Exception(f"Atom {atom} not mapped to another atom under symel {symel}")
+        amap[:, s] = hit.argmax(axis=1)                          # first match, like where_you_go
     return amap
 
 def get_linear_atom_mapping(mol, pg):

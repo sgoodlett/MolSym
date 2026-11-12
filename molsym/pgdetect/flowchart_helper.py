@@ -445,37 +445,43 @@ def find_C3s_for_Ih(mol):
     :type mol: molsym.Molecule
     :rtype: List[NumPy array of shape (3,)]
     """
-    c3_axes = []
-    for i in range(mol.natoms):
-        for j in range(mol.natoms):
-            for k in range(mol.natoms):
-                if i != j and i != k:
-                    rij = mol.coords[i,:] - mol.coords[j,:]
-                    rjk = mol.coords[j,:] - mol.coords[k,:]
-                    rik = mol.coords[i,:] - mol.coords[k,:]
-                    nij = np.linalg.norm(rij)
-                    njk = np.linalg.norm(rjk)
-                    nik = np.linalg.norm(rik)
-                    if np.isclose(nij, njk, atol=mol.tol) and np.isclose(nij, nik, atol=mol.tol):
-                        c3_axis = normalize(np.cross(rij, rjk))
-                        if c3_axis is not None:
-                            c3 = Cn(c3_axis, 3)
-                            molB = mol.transform(c3)
-                            if isequivalent(mol, molB):
-                                c3_axes.append(c3_axis)
-    unique_axes = [c3_axes[0]]
-    for i in c3_axes:
-        check = True
-        for j in unique_axes:
-            if issame_axis(i,j):
-                check = False
-                break
-        if check:
-            unique_axes.append(i)
-    chk = len(unique_axes)
-    if chk != 10:
-        raise Exception(f"Unexpected number of C3 axes for Ih point group: Found {chk} unique C3 axes")
-    return unique_axes
+    coords, n, tol = mol.coords, mol.natoms, mol.tol
+    D = np.linalg.norm(coords[:, None, :] - coords[None, :, :], axis=2)
+    same_mass = mol.masses[:, None] == mol.masses[None, :]
+    upper = np.triu(np.ones((n, n), dtype=bool), k=1)
+    # Collect normals of equilateral triangles of like atoms (each unordered triple i<j<k once)
+    candidates = []
+    for i in range(n - 2):
+        dij = D[i]
+        ok = same_mass[i] & (dij > tol)
+        m = (upper & ok[:, None] & ok[None, :]
+             & np.isclose(dij[:, None], dij[None, :], atol=tol)
+             & np.isclose(dij[:, None], D, atol=tol))
+        m[:i + 1, :] = False
+        j, k = np.nonzero(m)
+        if j.size == 0:
+            continue
+        axes = np.cross(coords[i] - coords[j], coords[j] - coords[k])
+        axes /= np.linalg.norm(axes, axis=1)[:, None]
+        # Every C3 axis (through the origin) has an orbit triangle whose centroid lies on it,
+        # so only keep triangles whose centroid is at the origin or parallel to their normal
+        cen = (coords[i] + coords[j] + coords[k]) / 3
+        cn = np.linalg.norm(cen, axis=1)
+        parallel = np.abs(np.einsum('ij,ij->i', cen, axes)) >= cn * (1 - 1e-6)
+        candidates.append(axes[(cn <= tol) | parallel])
+    candidates = np.concatenate(candidates) if candidates else np.zeros((0, 3))
+    # Symmetry-check each distinct candidate axis once, stopping after all ten are found
+    tested = []
+    unique_axes = []
+    for axis in candidates:
+        if any(issame_axis(axis, t) for t in tested):
+            continue
+        tested.append(axis)
+        if isequivalent(mol, mol.transform(Cn(axis, 3))):
+            unique_axes.append(axis)
+            if len(unique_axes) == 10:
+                return unique_axes
+    raise Exception(f"Unexpected number of C3 axes for Ih point group: Found {len(unique_axes)} unique C3 axes")
 
 def find_C4s_for_Oh(mol):
     """

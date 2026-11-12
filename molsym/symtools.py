@@ -86,6 +86,14 @@ def isequivalent(A,B):
     :return: True if equivalent, False if not
     :rtype: bool
     """
+    if A.natoms != B.natoms:
+        return False
+    eq_tol = max(A.tol, B.tol)
+    # (N, N) matrix of the largest per-axis coordinate difference
+    diff = np.abs(A.coords[:, None, :] - B.coords[None, :, :]).max(axis=2)
+    match = (diff <= eq_tol) & (A.masses[:, None] == B.masses[None, :])
+    # every atom in A has a partner in B, and vice versa
+    return bool(match.any(axis=1).all() and match.any(axis=0).all())
     if A.tol >= B.tol:
         eq_tol = A.tol
     else:

@@ -29,11 +29,18 @@ def build_mult_table(symels):
     :rtype: NumPy array of shape (nsymel,nsymel)
     """
     h = len(symels)
-    t = np.zeros((h,h), dtype=int)
-    for (i,a) in enumerate(symels):
-        for (j,b) in enumerate(symels):
-            t[i,j] = multifly(symels, a, b)[0]
-    return t
+    if h == 0:
+        return np.zeros((0, 0), dtype=int)
+    R = np.array([s.rrep for s in symels], dtype=float)        # (h,3,3)
+    P = np.einsum('iab,jbc->ijac', R, R).reshape(h*h, 9)        # all products R_i R_j
+    # For orthogonal matrices ||P-R||_F^2 = 6 - 2<P,R>_F, so <P,R>_F == 3 iff P == R
+    overlap = P @ R.reshape(h, 9).T
+    t = overlap.argmax(axis=1)
+    matched = np.isclose(overlap[np.arange(h*h), t], 3.0, atol=1e-8)
+    if not matched.all():
+        i, j = divmod(int(np.argmin(matched)), h)
+        raise Exception(f"No match found for Symels {symels[i].symbol} and {symels[j].symbol}!")
+    return t.reshape(h, h)
 
 def is_subgroup(G, mtable):
     """
